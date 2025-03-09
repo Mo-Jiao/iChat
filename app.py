@@ -107,39 +107,43 @@ with st.sidebar:
     tab1, tab2 = st.tabs(["Chat Settings", "API Settings"])
     
     with tab1:
-        # Select baseURL
-        base_url_options = list(st.session_state.settings["base_urls"].keys())
-        if base_url_options:
-            selected_base_url_name = st.selectbox(
-                "Select Provider",
-                base_url_options,
-                index=base_url_options.index(st.session_state.current_base_url) if st.session_state.current_base_url in base_url_options else 0
+        # Create a list of all available models with their providers
+        all_models = []
+        for provider, models in st.session_state.settings["models"].items():
+            for model in models:
+                all_models.append({
+                    "display_name": f"{provider} - {model}",
+                    "provider": provider,
+                    "model": model
+                })
+        
+        if all_models:
+            # Find current selection index
+            current_index = 0
+            for i, model_info in enumerate(all_models):
+                if (model_info["provider"] == st.session_state.current_base_url and 
+                    model_info["model"] == st.session_state.current_model):
+                    current_index = i
+                    break
+            
+            # Create selection box with combined provider-model names
+            selected_option = st.selectbox(
+                "Select Model",
+                options=range(len(all_models)),
+                format_func=lambda x: all_models[x]["display_name"],
+                index=current_index
             )
             
-            # If provider is changed, clear chat history
-            if selected_base_url_name != st.session_state.current_base_url:
+            # Update provider and model based on selection
+            selected_model_info = all_models[selected_option]
+            if (selected_model_info["provider"] != st.session_state.current_base_url or 
+                selected_model_info["model"] != st.session_state.current_model):
                 st.session_state.messages = []
-                st.session_state.current_base_url = selected_base_url_name
-            
-            # Update API Key based on selected baseURL
-            if selected_base_url_name in st.session_state.settings["api_keys"]:
-                st.session_state.current_api_key = st.session_state.settings["api_keys"][selected_base_url_name]
-            
-            # Select model
-            if selected_base_url_name in st.session_state.settings["models"] and st.session_state.settings["models"][selected_base_url_name]:
-                model_options = st.session_state.settings["models"][selected_base_url_name]
-                selected_model = st.selectbox(
-                    "Select Model",
-                    model_options,
-                    index=model_options.index(st.session_state.current_model) if st.session_state.current_model in model_options else 0
-                )
-                
-                # If model is changed, clear chat history
-                if selected_model != st.session_state.current_model:
-                    st.session_state.messages = []
-                    st.session_state.current_model = selected_model
+                st.session_state.current_base_url = selected_model_info["provider"]
+                st.session_state.current_model = selected_model_info["model"]
+                st.session_state.current_api_key = st.session_state.settings["api_keys"][selected_model_info["provider"]]
         else:
-            st.warning("Please add a provider in API Settings first")
+            st.warning("Please add a provider and models in API Settings first")
         
         # Function buttons
         col1, col2 = st.columns(2)
@@ -150,8 +154,54 @@ with st.sidebar:
         
         with col2:
             if st.button("Retry Last", use_container_width=True) and st.session_state.messages:
+                # Remove the last assistant message if it exists
                 if st.session_state.messages and st.session_state.messages[-1]["role"] == "assistant":
                     st.session_state.messages.pop()
+                    
+                    # Check if valid settings exist
+                    if not st.session_state.current_base_url or not st.session_state.current_api_key or not st.session_state.current_model:
+                        with st.chat_message("assistant"):
+                            st.error("Please complete API settings in the sidebar first")
+                    else:
+                        # Show AI thinking
+                        with st.chat_message("assistant"):
+                            message_placeholder = st.empty()
+                            message_placeholder.markdown("Thinking...")
+                            
+                            try:
+                                # Configure OpenAI client
+                                client = openai.OpenAI(
+                                    base_url=st.session_state.settings["base_urls"][st.session_state.current_base_url],
+                                    api_key=st.session_state.current_api_key
+                                )
+                                
+                                # Prepare message history
+                                messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                                
+                                # Call API
+                                response = client.chat.completions.create(
+                                    model=st.session_state.current_model,
+                                    messages=messages,
+                                    stream=True
+                                )
+                                
+                                # Stream output
+                                full_response = ""
+                                for chunk in response:
+                                    if chunk.choices[0].delta.content:
+                                        full_response += chunk.choices[0].delta.content
+                                        message_placeholder.markdown(full_response + "▌")
+                                
+                                # Update final response
+                                message_placeholder.markdown(full_response)
+                                
+                                # Add AI reply to chat history
+                                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                                
+                            except Exception as e:
+                                error_message = f"Error occurred: {str(e)}"
+                                message_placeholder.error(error_message)
+                                st.session_state.messages.append({"role": "assistant", "content": error_message})
                 st.rerun()
     
     with tab2:
