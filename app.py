@@ -112,7 +112,7 @@ with st.sidebar:
         for provider, models in st.session_state.settings["models"].items():
             for model in models:
                 all_models.append({
-                    "display_name": f"{provider} - {model}",
+                    "display_name": f"[{provider}] {model}",
                     "provider": provider,
                     "model": model
                 })
@@ -354,8 +354,10 @@ if prompt := st.chat_input("Enter your question..."):
                     api_key=st.session_state.current_api_key
                 )
                 
-                # Prepare message history
-                messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                # Prepare complete message history
+                messages = []
+                for m in st.session_state.messages:
+                    messages.append({"role": m["role"], "content": m["content"]})
                 
                 # Call API
                 response = client.chat.completions.create(
