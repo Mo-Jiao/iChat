@@ -138,7 +138,6 @@ with st.sidebar:
             selected_model_info = all_models[selected_option]
             if (selected_model_info["provider"] != st.session_state.current_base_url or 
                 selected_model_info["model"] != st.session_state.current_model):
-                st.session_state.messages = []
                 st.session_state.current_base_url = selected_model_info["provider"]
                 st.session_state.current_model = selected_model_info["model"]
                 st.session_state.current_api_key = st.session_state.settings["api_keys"][selected_model_info["provider"]]
