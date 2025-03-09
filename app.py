@@ -334,4 +334,4 @@ if prompt := st.chat_input("Enter your question..."):
 
 # Footer
 st.markdown("---")
-st.markdown("© 2023 Unified LLM Chat | Built with Streamlit and OpenAI protocol")
+st.markdown("© 2025 Unified LLM Chat | Built with Streamlit and OpenAI protocol")
